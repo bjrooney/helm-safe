@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# GitHub CLI script to set up branch protection for helm-safe repository
-# Run this script if you have GitHub CLI installed and authenticated
+# Simple GitHub CLI script to set up basic branch protection for helm-safe repository
+# This version excludes status checks to avoid issues with non-existent CI checks
 
 set -e
 
 REPO="bjrooney/helm-safe"
 BRANCH="main"
 
-echo "🔒 Setting up branch protection for $REPO:$BRANCH"
+echo "🔒 Setting up basic branch protection for $REPO:$BRANCH"
 
 # Check if gh CLI is available
 if ! command -v gh >/dev/null 2>&1; then
@@ -26,16 +26,13 @@ fi
 
 echo "✅ GitHub CLI is ready"
 
-# Create branch protection rule
-echo "🛡️  Creating branch protection rule..."
+# Create basic branch protection rule (without status checks)
+echo "🛡️  Creating basic branch protection rule..."
 
 # Create the JSON payload for branch protection
-cat > /tmp/branch_protection.json << 'EOF'
+cat > /tmp/branch_protection_basic.json << 'EOF'
 {
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["build"]
-  },
+  "required_status_checks": null,
   "enforce_admins": true,
   "required_pull_request_reviews": {
     "required_approving_review_count": 1,
@@ -51,43 +48,50 @@ EOF
 
 gh api repos/$REPO/branches/$BRANCH/protection \
   --method PUT \
-  --input /tmp/branch_protection.json
+  --input /tmp/branch_protection_basic.json
 
 if [ $? -eq 0 ]; then
-    echo "✅ Branch protection rule created successfully!"
+    echo "✅ Basic branch protection rule created successfully!"
     
     # Clean up temporary file
-    rm -f /tmp/branch_protection.json
+    rm -f /tmp/branch_protection_basic.json
     
     echo ""
     echo "🔧 Configuration applied:"
     echo "  ✓ Require pull request reviews (1 approval required)"
     echo "  ✓ Dismiss stale reviews when new commits are pushed"
     echo "  ✓ Require review from code owners (CODEOWNERS file)"
-    echo "  ✓ Require status checks to pass (build)"
-    echo "  ✓ Require branches to be up to date before merging"
     echo "  ✓ Include administrators (applies to you too)"
     echo "  ✓ Restrict force pushes"
     echo "  ✓ Restrict branch deletion"
     echo ""
+    echo "⚠️  Status checks NOT enabled yet (to avoid errors with non-existent CI)"
+    echo ""
+    echo "🔄 To add status checks later:"
+    echo "  1. Push a commit to trigger GitHub Actions workflow"
+    echo "  2. Go to GitHub repo settings > Branches"
+    echo "  3. Edit the protection rule"
+    echo "  4. Enable 'Require status checks to pass before merging'"
+    echo "  5. Select 'build' from the list of available checks"
+    echo ""
     echo "🎯 Next steps:"
     echo "  1. All future changes must go through pull requests"
     echo "  2. Each PR requires your approval before merging"
-    echo "  3. CI must pass before merging is allowed"
+    echo "  3. Once CI runs, you can add status check requirements"
     echo ""
     echo "📚 See BRANCH_PROTECTION_SETUP.md for detailed workflow instructions"
 else
     echo "❌ Failed to create branch protection rule"
     
     # Clean up temporary file
-    rm -f /tmp/branch_protection.json
+    rm -f /tmp/branch_protection_basic.json
     
     echo "   You may need to set this up manually through the GitHub web interface"
     echo "   See BRANCH_PROTECTION_SETUP.md for step-by-step instructions"
     echo ""
     echo "💡 Common issues:"
     echo "   - Repository may not exist or you may not have admin access"
-    echo "   - Status check 'build' may not exist yet (push a commit to trigger CI first)"
-    echo "   - Try running without status checks first, then add them later"
+    echo "   - Make sure you're authenticated: gh auth login"
+    echo "   - Try the manual setup through GitHub web interface instead"
     exit 1
 fi
