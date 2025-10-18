@@ -22,7 +22,7 @@ case $ARCH in
     arm64|aarch64)
         # Check for mixed architecture (64-bit CPU, 32-bit userland)
         # This is common on Raspberry Pi OS 32-bit running on 64-bit hardware
-        if grep -qiE "armhf|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
+        if grep -qi "armhf\|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
             echo -e "${YELLOW}Detected: 64-bit ARM CPU with 32-bit userland (Raspberry Pi OS 32-bit)${NC}"
             echo -e "${YELLOW}Using 32-bit ARM binary for compatibility${NC}"
             ARCH="arm"
@@ -115,7 +115,7 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
                 rm -f "$TMP_TAR"
                 
                 # Validate binary size (should be > 1MB for Go programs)
-                BINARY_SIZE=$(wc -c < "$EXTRACTED_BINARY" 2>/dev/null | tr -d '[:space:]' || echo "0")
+                BINARY_SIZE=$(stat -c%s "$EXTRACTED_BINARY" 2>/dev/null || echo "0")
                 if [ "$BINARY_SIZE" -lt 1000000 ]; then
                     echo -e "${YELLOW}Warning: Binary seems small ($BINARY_SIZE bytes)${NC}"
                     echo -e "${YELLOW}This might indicate a download issue${NC}"
