@@ -14,15 +14,32 @@ echo -e "${GREEN}Installing helm-safe plugin...${NC}"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
+# Enhanced ARM architecture detection for Raspberry Pi and mixed systems
 case $ARCH in
     x86_64)
         ARCH="amd64"
         ;;
     arm64|aarch64)
-        ARCH="arm64"
+        # Check for mixed architecture (64-bit CPU, 32-bit userland)
+        # This is common on Raspberry Pi OS 32-bit running on 64-bit hardware
+        if grep -qiE "armhf|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
+            echo -e "${YELLOW}Detected: 64-bit ARM CPU with 32-bit userland (Raspberry Pi OS 32-bit)${NC}"
+            echo -e "${YELLOW}Using 32-bit ARM binary for compatibility${NC}"
+            ARCH="arm"
+        else
+            ARCH="arm64"
+        fi
+        ;;
+    armv7l|armv7*)
+        ARCH="arm"
+        ;;
+    armv6l|armv6*)
+        ARCH="arm"
         ;;
     *)
         echo -e "${RED}Unsupported architecture: $ARCH${NC}"
+        echo -e "${YELLOW}Supported architectures: amd64, arm64, arm (32-bit)${NC}"
+        echo -e "${YELLOW}You may need to build from source if Go is available${NC}"
         exit 1
         ;;
 esac
@@ -68,21 +85,69 @@ fi
 if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
     echo -e "${YELLOW}Go not found, attempting to download pre-built binary...${NC}"
     
-    # Try to download from GitHub releases
-    RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
-    if [ "$OS" = "windows" ]; then
-        RELEASE_URL="${RELEASE_URL}.exe"
-    fi
-    
+    # Try to download from GitHub releases (tar.gz format for better compatibility)
+    RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}.tar.gz"
     echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
     
     DOWNLOAD_SUCCESS=false
+    TMP_TAR="/tmp/helm-safe-${OS}-${ARCH}.tar.gz"
+    
     if command -v curl >/dev/null 2>&1; then
-        if curl -sL "$RELEASE_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+        if curl -sL "$RELEASE_URL" -o "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
             DOWNLOAD_SUCCESS=true
         fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -q "$RELEASE_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+        if wget -q "$RELEASE_URL" -O "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
+            DOWNLOAD_SUCCESS=true
+        fi
+    fi
+    
+    if [ "$DOWNLOAD_SUCCESS" = true ]; then
+        echo -e "${YELLOW}Extracting binary...${NC}"
+        cd "${HELM_PLUGIN_DIR}"
+        
+        if tar -xzf "$TMP_TAR" -C bin/ 2>/dev/null; then
+            # Check if binary was extracted correctly
+            EXTRACTED_BINARY="${HELM_PLUGIN_DIR}/bin/helm-safe"
+            if [ -f "$EXTRACTED_BINARY" ]; then
+                echo -e "${GREEN}Downloaded and extracted binary: $EXTRACTED_BINARY${NC}"
+                chmod +x "$EXTRACTED_BINARY"
+                rm -f "$TMP_TAR"
+                
+                # Validate binary size (should be > 1MB for Go programs)
+                BINARY_SIZE=$(wc -c < "$EXTRACTED_BINARY" 2>/dev/null | tr -d '[:space:]' || echo "0")
+                if [ "$BINARY_SIZE" -lt 1000000 ]; then
+                    echo -e "${YELLOW}Warning: Binary seems small ($BINARY_SIZE bytes)${NC}"
+                    echo -e "${YELLOW}This might indicate a download issue${NC}"
+                fi
+                
+                exit 0
+            else
+                echo -e "${RED}Failed to extract binary from archive${NC}"
+                rm -f "$TMP_TAR"
+            fi
+        else
+            echo -e "${RED}Failed to extract tar.gz archive${NC}"
+            rm -f "$TMP_TAR"
+        fi
+    fi
+    
+    # Fallback: try direct binary download (for older releases)
+    echo -e "${YELLOW}Tar.gz download failed, trying direct binary download...${NC}"
+    DIRECT_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
+    if [ "$OS" = "windows" ]; then
+        DIRECT_URL="${DIRECT_URL}.exe"
+    fi
+    
+    echo -e "${YELLOW}Downloading: ${DIRECT_URL}${NC}"
+    
+    DOWNLOAD_SUCCESS=false
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sL "$DIRECT_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+            DOWNLOAD_SUCCESS=true
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q "$DIRECT_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
             DOWNLOAD_SUCCESS=true
         fi
     fi
@@ -93,14 +158,21 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
         exit 0
     else
         echo -e "${YELLOW}Pre-built binary not available for ${OS}-${ARCH}${NC}"
-        echo -e "${YELLOW}This is normal for new releases. Installing Go to build from source...${NC}"
+        echo -e "${YELLOW}This is normal for new releases or uncommon architectures${NC}"
         rm -f "$BINARY_PATH" 2>/dev/null
         
-        # Check if we can install Go automatically (this is a fallback)
+        # Provide helpful message for ARM systems
+        if [ "$ARCH" = "arm" ]; then
+            echo -e "${YELLOW}For Raspberry Pi and ARM systems:${NC}"
+            echo -e "${YELLOW}  - Try installing v0.1.6+ which includes ARM support${NC}"
+            echo -e "${YELLOW}  - Or install Go to build from source${NC}"
+        fi
+        
         echo -e "${RED}Go is required to build helm-safe from source${NC}"
         echo -e "${YELLOW}Please install Go 1.21+ and run the installation again${NC}"
         echo -e "${YELLOW}  macOS: brew install go${NC}"
         echo -e "${YELLOW}  Ubuntu/Debian: sudo apt install golang-go${NC}"
+        echo -e "${YELLOW}  Raspberry Pi: sudo apt install golang-go${NC}"
         echo -e "${YELLOW}  Or visit: https://golang.org/dl/${NC}"
         exit 1
     fi
