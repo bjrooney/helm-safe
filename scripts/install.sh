@@ -22,7 +22,7 @@ case $ARCH in
     arm64|aarch64)
         # Check for mixed architecture (64-bit CPU, 32-bit userland)
         # This is common on Raspberry Pi OS 32-bit running on 64-bit hardware
-        if grep -qi "armhf\|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
+        if grep -qiE "armhf|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
             echo -e "${YELLOW}Detected: 64-bit ARM CPU with 32-bit userland (Raspberry Pi OS 32-bit)${NC}"
             echo -e "${YELLOW}Using 32-bit ARM binary for compatibility${NC}"
             ARCH="arm"
