@@ -1,0 +1,22 @@
+# Global code owners - all files require review from @bjrooney
+* @bjrooney
+
+# Specific file types that need extra attention
+*.go @bjrooney
+*.yaml @bjrooney
+*.yml @bjrooney
+Dockerfile* @bjrooney
+*.sh @bjrooney
+
+# Critical directories and files
+/.github/ @bjrooney
+/scripts/ @bjrooney
+/pkg/ @bjrooney
+plugin.yaml @bjrooney
+Makefile @bjrooney
+go.mod @bjrooney
+go.sum @bjrooney
+
+# Documentation that affects usage
+README.md @bjrooney
+INSTALLATION.md @bjrooney
