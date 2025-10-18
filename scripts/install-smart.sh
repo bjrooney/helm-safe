@@ -17,6 +17,15 @@ echo -e "${GREEN}Installing helm-safe plugin...${NC}"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
+# Special handling for Raspberry Pi and mixed architecture systems
+if [ "$ARCH" = "aarch64" ] && [ -f /proc/version ]; then
+    # Check if this is actually a 32-bit userland on 64-bit hardware
+    if grep -qi "armhf\|armv7" /proc/version || [ -d /lib/arm-linux-gnueabihf ]; then
+        echo -e "${YELLOW}Detected 64-bit ARM CPU with 32-bit userland (common on Raspberry Pi)${NC}"
+        ARCH="arm"
+    fi
+fi
+
 case $ARCH in
     x86_64)
         ARCH="amd64"
@@ -31,6 +40,9 @@ case $ARCH in
     armv6l|armv6*)
         ARCH="arm"
         echo -e "${YELLOW}Note: Detected 32-bit ARM (armv6). If this fails, you may need to build from source.${NC}"
+        ;;
+    arm)
+        # Already set correctly
         ;;
     *)
         echo -e "${RED}Unsupported architecture: $ARCH${NC}"
@@ -83,12 +95,18 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
             chmod +x "$BINARY_PATH"
             rm -f "$TMP_TAR"
             
-            # Verify the binary works
-            if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
+            # Verify the binary works and has reasonable size
+            BINARY_SIZE=$(stat -c%s "$BINARY_PATH" 2>/dev/null || echo "0")
+            if [ "$BINARY_SIZE" -lt 1000000 ]; then  # Less than 1MB is suspicious for a Go binary
+                echo -e "${YELLOW}Warning: Binary size ($BINARY_SIZE bytes) seems too small. May be corrupted.${NC}"
+                rm -f "$BINARY_PATH"
+            elif "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
                 echo -e "${GREEN}Successfully downloaded and installed binary: $BINARY_PATH${NC}"
                 exit 0
             else
-                echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
+                echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible (exec format error)${NC}"
+                echo -e "${YELLOW}Your system: $(uname -a)${NC}"
+                echo -e "${YELLOW}Binary: $(file "$BINARY_PATH" 2>/dev/null || echo "file command not available")${NC}"
                 rm -f "$BINARY_PATH"
             fi
         fi
