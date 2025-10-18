@@ -76,25 +76,33 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
     
     echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
     
+    DOWNLOAD_SUCCESS=false
     if command -v curl >/dev/null 2>&1; then
-        curl -sL "$RELEASE_URL" -o "$BINARY_PATH" 2>/dev/null
+        if curl -sL "$RELEASE_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+            DOWNLOAD_SUCCESS=true
+        fi
     elif command -v wget >/dev/null 2>&1; then
-        wget -q "$RELEASE_URL" -O "$BINARY_PATH" 2>/dev/null
-    else
-        echo -e "${RED}Neither curl nor wget found. Cannot download binary.${NC}"
-        echo -e "${YELLOW}Please install Go or manually place the helm-safe binary in:${NC}"
-        echo -e "${YELLOW}  ${BINARY_PATH}${NC}"
-        exit 1
+        if wget -q "$RELEASE_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+            DOWNLOAD_SUCCESS=true
+        fi
     fi
     
-    if [ -f "$BINARY_PATH" ] && [ -s "$BINARY_PATH" ]; then
+    if [ "$DOWNLOAD_SUCCESS" = true ]; then
         echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
         chmod +x "$BINARY_PATH"
         exit 0
     else
-        echo -e "${RED}Failed to download pre-built binary${NC}"
-        echo -e "${YELLOW}Fallback: Please install Go and try again, or manually build the binary${NC}"
+        echo -e "${YELLOW}Pre-built binary not available for ${OS}-${ARCH}${NC}"
+        echo -e "${YELLOW}This is normal for new releases. Installing Go to build from source...${NC}"
         rm -f "$BINARY_PATH" 2>/dev/null
+        
+        # Check if we can install Go automatically (this is a fallback)
+        echo -e "${RED}Go is required to build helm-safe from source${NC}"
+        echo -e "${YELLOW}Please install Go 1.21+ and run the installation again${NC}"
+        echo -e "${YELLOW}  macOS: brew install go${NC}"
+        echo -e "${YELLOW}  Ubuntu/Debian: sudo apt install golang-go${NC}"
+        echo -e "${YELLOW}  Or visit: https://golang.org/dl/${NC}"
+        exit 1
     fi
 fi
 
