@@ -115,7 +115,7 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
                 rm -f "$TMP_TAR"
                 
                 # Validate binary size (should be > 1MB for Go programs)
-                BINARY_SIZE=$(stat -c%s "$EXTRACTED_BINARY" 2>/dev/null || echo "0")
+                BINARY_SIZE=$(wc -c < "$EXTRACTED_BINARY" 2>/dev/null | tr -d '[:space:]' || echo "0")
                 if [ "$BINARY_SIZE" -lt 1000000 ]; then
                     echo -e "${YELLOW}Warning: Binary seems small ($BINARY_SIZE bytes)${NC}"
                     echo -e "${YELLOW}This might indicate a download issue${NC}"
