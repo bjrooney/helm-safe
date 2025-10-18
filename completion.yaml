@@ -1,0 +1,22 @@
+name: safe
+flags:
+- h
+- help
+- V
+- version
+- n
+- namespace
+- kube-context
+- kube-apiserver
+- kube-token
+- kube-as-user
+- kube-as-group
+- kube-ca-file
+- kube-insecure-skip-tls-verify
+- kube-tls-server-name
+- registry-config
+- repository-cache
+- repository-config
+- debug
+- kubeconfig
+validArgs: []

@@ -1,0 +1,26 @@
+name: safe
+version: 0.1.0
+usage: Interactive safety net for modifying Helm commands
+description: |
+  helm-safe provides an interactive safety net for modifying Helm commands.
+  
+  It acts as a wrapper around destructive Helm operations to prevent common
+  mistakes by:
+  - Requiring explicit --namespace and --kube-context flags for modifying commands
+  - Showing interactive confirmation prompts with target details
+  - Acting as a final checkpoint before potentially destructive operations
+  
+  Modifying commands include: install, upgrade, uninstall, delete, rollback,
+  and other commands that change cluster state.
+  
+  For safe commands like list, get, status, history, etc., this plugin acts as a
+  transparent pass-through to helm without any safety checks.
+
+ignoreFlags: false
+command: ${HELM_PLUGIN_DIR}/bin/helm-safe
+
+platformHooks:
+  install:
+    - command: ${HELM_PLUGIN_DIR}/scripts/install.sh
+  update:
+    - command: ${HELM_PLUGIN_DIR}/scripts/install.sh
