@@ -17,21 +17,46 @@ helm-safe acts as a simple, interactive wrapper around modifying Helm commands t
 
 ## Installation
 
+### Quick Install (Recommended)
+
+```bash
+# One-line installation
+curl -sSL https://raw.githubusercontent.com/bjrooney/helm-safe/main/install.sh | bash
+
+# Or simple version
+curl -sSL https://raw.githubusercontent.com/bjrooney/helm-safe/main/quick-install.sh | bash
+```
+
 ### Via Helm Plugin Manager
 
 ```bash
+# Install directly from GitHub
+helm plugin install https://github.com/bjrooney/helm-safe
+
 # Install from local directory (for development)
 helm plugin install /path/to/helm-safe
-
-# Or install from git repository (when published)
-helm plugin install https://github.com/bjrooney/helm-safe
 ```
 
 ### Manual Installation
 
-1. Clone this repository
-2. Run `make dev-install` to build and install locally
-3. Or copy the plugin directory to `$(helm env HELM_PLUGINS)/safe`
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/bjrooney/helm-safe.git
+   cd helm-safe
+   ```
+
+2. Install using one of these methods:
+   ```bash
+   # Option 1: Use make
+   make dev-install
+   
+   # Option 2: Use helm plugin install
+   helm plugin install .
+   
+   # Option 3: Manual copy (if above methods fail)
+   mkdir -p "$(helm env HELM_PLUGINS)/helm-safe"
+   cp -r . "$(helm env HELM_PLUGINS)/helm-safe/"
+   ```
 
 ### Build from Source
 
@@ -41,6 +66,13 @@ cd helm-safe
 make build
 # Binary will be available at bin/helm-safe
 ```
+
+### Installation Troubleshooting
+
+If you encounter issues installing on systems without Go:
+- The plugin includes pre-built binaries for common platforms
+- See [INSTALL_NO_GO.md](INSTALL_NO_GO.md) for detailed troubleshooting
+- Use the installation scripts which handle binary downloads automatically
 
 ## Usage
 
