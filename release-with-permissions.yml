@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Add explicit permissions for release creation
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Build for all platforms
+      run: make cross-build
+    
+    - name: Package binaries
+      run: |
+        mkdir -p dist
+        for binary in bin/helm-safe-*; do
+          if [[ "$binary" == *".exe" ]]; then
+            # Windows binary
+            platform=$(basename "$binary" .exe | sed 's/helm-safe-//')
+            tar czf "dist/helm-safe-${platform}.tar.gz" -C bin "$(basename "$binary")"
+          else
+            # Unix binary
+            platform=$(basename "$binary" | sed 's/helm-safe-//')
+            tar czf "dist/helm-safe-${platform}.tar.gz" -C bin "$(basename "$binary")"
+          fi
+        done
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*.tar.gz
+        generate_release_notes: true
