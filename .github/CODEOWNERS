@@ -1,4 +1,4 @@
-# Global code owners - all files require review from @bjrooney
+# Global code owners
 * @bjrooney
 
 # Specific file types that need extra attention
@@ -8,15 +8,8 @@
 Dockerfile* @bjrooney
 *.sh @bjrooney
 
-# Critical directories and files
+# Critical files
 /.github/ @bjrooney
 /scripts/ @bjrooney
 /pkg/ @bjrooney
 plugin.yaml @bjrooney
-Makefile @bjrooney
-go.mod @bjrooney
-go.sum @bjrooney
-
-# Documentation that affects usage
-README.md @bjrooney
-INSTALLATION.md @bjrooney
