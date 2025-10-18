@@ -78,32 +78,69 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && command -v go >/dev/null 2>&1; then
     exit 0
 fi
 
-# Strategy 3: Try to download from GitHub releases
+# Strategy 3: Try to download from GitHub releases (tar.gz format)
 echo -e "${YELLOW}Attempting to download pre-built binary from GitHub...${NC}"
 
-RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
-if [ "$OS" = "windows" ]; then
-    RELEASE_URL="${RELEASE_URL}.exe"
-fi
+RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}.tar.gz"
 
 echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
 
+DOWNLOAD_SUCCESS=false
+TMP_TAR="/tmp/helm-safe-${OS}-${ARCH}.tar.gz"
+
 if command -v curl >/dev/null 2>&1; then
-    if curl -sL "$RELEASE_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+    if curl -sL "$RELEASE_URL" -o "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
+        DOWNLOAD_SUCCESS=true
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if wget -q "$RELEASE_URL" -O "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
+        DOWNLOAD_SUCCESS=true
+    fi
+fi
+
+if [ "$DOWNLOAD_SUCCESS" = true ]; then
+    echo -e "${YELLOW}Extracting binary...${NC}"
+    cd "${HELM_PLUGIN_DIR}"
+    
+    if tar -xzf "$TMP_TAR" -C bin/ 2>/dev/null; then
+        # Find the extracted binary and rename it to helm-safe
+        EXTRACTED_BINARY=$(find bin/ -name "helm-safe-*" -type f | head -1)
+        if [ -n "$EXTRACTED_BINARY" ] && [ -f "$EXTRACTED_BINARY" ]; then
+            mv "$EXTRACTED_BINARY" "$BINARY_PATH"
+            chmod +x "$BINARY_PATH"
+            rm -f "$TMP_TAR"
+            echo -e "${GREEN}Downloaded and installed binary: $BINARY_PATH${NC}"
+            exit 0
+        fi
+    fi
+    
+    rm -f "$TMP_TAR"
+    echo -e "${YELLOW}Failed to extract binary from tar.gz${NC}"
+fi
+
+# Fallback: try direct binary download (for future compatibility)
+echo -e "${YELLOW}Trying direct binary download...${NC}"
+DIRECT_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
+if [ "$OS" = "windows" ]; then
+    DIRECT_URL="${DIRECT_URL}.exe"
+fi
+
+if command -v curl >/dev/null 2>&1; then
+    if curl -sL "$DIRECT_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
         echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
         chmod +x "$BINARY_PATH"
         exit 0
     fi
 elif command -v wget >/dev/null 2>&1; then
-    if wget -q "$RELEASE_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
+    if wget -q "$DIRECT_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
         echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
         chmod +x "$BINARY_PATH"
         exit 0
     fi
 fi
 
-# Clean up failed download
-rm -f "$BINARY_PATH" 2>/dev/null
+# Clean up failed downloads
+rm -f "$BINARY_PATH" "$TMP_TAR" 2>/dev/null
 
 # If all strategies failed
 echo -e "${RED}Failed to install helm-safe binary${NC}"
