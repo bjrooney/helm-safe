@@ -84,6 +84,7 @@ echo ""
 echo -e "${YELLOW}Installing helm-safe plugin...${NC}"
 echo -e "${BLUE}Running: helm plugin install ${PLUGIN_URL}${NC}"
 
+# Note: The plugin's own install scripts will handle binary building/downloading
 if helm plugin install "${PLUGIN_URL}"; then
     echo ""
     echo -e "${GREEN}🎉 helm-safe plugin installed successfully!${NC}"
