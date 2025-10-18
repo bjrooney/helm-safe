@@ -24,8 +24,17 @@ case $ARCH in
     arm64|aarch64)
         ARCH="arm64"
         ;;
+    armv7l|armv7*)
+        ARCH="arm"
+        echo -e "${YELLOW}Note: Detected 32-bit ARM (armv7). If this fails, you may need to build from source.${NC}"
+        ;;
+    armv6l|armv6*)
+        ARCH="arm"
+        echo -e "${YELLOW}Note: Detected 32-bit ARM (armv6). If this fails, you may need to build from source.${NC}"
+        ;;
     *)
         echo -e "${RED}Unsupported architecture: $ARCH${NC}"
+        echo -e "${YELLOW}Supported: x86_64, arm64, armv7l, armv6l${NC}"
         exit 1
         ;;
 esac
@@ -73,13 +82,20 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
             mv "$EXTRACTED_BINARY" "$BINARY_PATH"
             chmod +x "$BINARY_PATH"
             rm -f "$TMP_TAR"
-            echo -e "${GREEN}Successfully downloaded and installed binary: $BINARY_PATH${NC}"
-            exit 0
+            
+            # Verify the binary works
+            if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
+                echo -e "${GREEN}Successfully downloaded and installed binary: $BINARY_PATH${NC}"
+                exit 0
+            else
+                echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
+                rm -f "$BINARY_PATH"
+            fi
         fi
     fi
     
     rm -f "$TMP_TAR"
-    echo -e "${YELLOW}Failed to extract binary from tar.gz${NC}"
+    echo -e "${YELLOW}Failed to extract or verify binary from tar.gz${NC}"
 fi
 
 # Strategy 2: Try direct binary download (fallback for different release formats)
@@ -91,15 +107,27 @@ fi
 
 if command -v curl >/dev/null 2>&1; then
     if curl -sL "$DIRECT_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
-        echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
         chmod +x "$BINARY_PATH"
-        exit 0
+        # Verify the binary works
+        if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
+            echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
+            exit 0
+        else
+            echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
+            rm -f "$BINARY_PATH"
+        fi
     fi
 elif command -v wget >/dev/null 2>&1; then
     if wget -q "$DIRECT_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
-        echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
         chmod +x "$BINARY_PATH"
-        exit 0
+        # Verify the binary works
+        if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
+            echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
+            exit 0
+        else
+            echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
+            rm -f "$BINARY_PATH"
+        fi
     fi
 fi
 
