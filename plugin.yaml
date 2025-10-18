@@ -21,6 +21,4 @@ command: ${HELM_PLUGIN_DIR}/bin/helm-safe
 
 platformHooks:
   install:
-    - command: ${HELM_PLUGIN_DIR}/scripts/install.sh
-  update:
-    - command: ${HELM_PLUGIN_DIR}/scripts/install.sh
+    - command: ${HELM_PLUGIN_DIR}/scripts/install-simple.sh

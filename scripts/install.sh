@@ -45,8 +45,8 @@ if [ -f "$BINARY_PATH" ]; then
     exit 0
 fi
 
-# For development/local installation, try to build from source
-if [ -f "${HELM_PLUGIN_DIR}/go.mod" ]; then
+# Check if we can build from source (Go is available)
+if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && command -v go >/dev/null 2>&1; then
     echo -e "${YELLOW}Building from source...${NC}"
     
     cd "${HELM_PLUGIN_DIR}"
@@ -62,6 +62,40 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ]; then
     chmod +x "bin/${BINARY_NAME}"
     
     exit 0
+fi
+
+# If Go is not available, try to download pre-built binary
+if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
+    echo -e "${YELLOW}Go not found, attempting to download pre-built binary...${NC}"
+    
+    # Try to download from GitHub releases
+    RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
+    if [ "$OS" = "windows" ]; then
+        RELEASE_URL="${RELEASE_URL}.exe"
+    fi
+    
+    echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -sL "$RELEASE_URL" -o "$BINARY_PATH" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$RELEASE_URL" -O "$BINARY_PATH" 2>/dev/null
+    else
+        echo -e "${RED}Neither curl nor wget found. Cannot download binary.${NC}"
+        echo -e "${YELLOW}Please install Go or manually place the helm-safe binary in:${NC}"
+        echo -e "${YELLOW}  ${BINARY_PATH}${NC}"
+        exit 1
+    fi
+    
+    if [ -f "$BINARY_PATH" ] && [ -s "$BINARY_PATH" ]; then
+        echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
+        chmod +x "$BINARY_PATH"
+        exit 0
+    else
+        echo -e "${RED}Failed to download pre-built binary${NC}"
+        echo -e "${YELLOW}Fallback: Please install Go and try again, or manually build the binary${NC}"
+        rm -f "$BINARY_PATH" 2>/dev/null
+    fi
 fi
 
 echo -e "${RED}No binary found and no source code available${NC}"
