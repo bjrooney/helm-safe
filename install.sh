@@ -105,7 +105,7 @@ detect_hardware_details
 echo ""
 
 # Check if plugin is already installed  
-if helm plugin list 2>/dev/null | grep -q "^${PLUGIN_NAME}"; then
+if helm plugin list 2>/dev/null | grep -q "^safe"; then
     echo -e "${YELLOW}⚠️  helm-safe plugin is already installed${NC}"
     
     # Non-interactive mode for CI/automated installs
@@ -115,7 +115,7 @@ if helm plugin list 2>/dev/null | grep -q "^${PLUGIN_NAME}"; then
     else
         # Interactive mode
         echo -e "${BLUE}Current installation:${NC}"
-        helm plugin list | grep "^${PLUGIN_NAME}" || true
+        helm plugin list | grep "^safe" || true
         echo ""
         read -p "Do you want to reinstall? (y/N): " -n 1 -r
         echo ""
@@ -263,8 +263,8 @@ fi
 
 # Verify installation
 echo -e "${YELLOW}Verifying installation...${NC}"
-if helm plugin list | grep -q "^${PLUGIN_NAME}"; then
-    PLUGIN_VERSION=$(helm plugin list | grep "^${PLUGIN_NAME}" | awk '{print $2}')
+if helm plugin list | grep -q "^safe"; then
+    PLUGIN_VERSION=$(helm plugin list | grep "^safe" | awk '{print $2}')
     echo -e "${GREEN}✓ Plugin verification successful${NC}"
     echo -e "${GREEN}✓ Version: ${PLUGIN_VERSION}${NC}"
     
