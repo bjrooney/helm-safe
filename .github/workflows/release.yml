@@ -44,12 +44,20 @@ jobs:
             # Unix binary - create as 'helm-safe' inside archive for consistency
             platform=$(basename "$binary" | sed 's/helm-safe-//')
             echo "Creating Unix archive: helm-safe-${platform}.tar.gz"
-            cp "$binary" "bin/helm-safe"
-            tar czf "dist/helm-safe-${platform}.tar.gz" -C bin "helm-safe"
+            # Create a temporary directory for this specific binary
+            mkdir -p "temp-${platform}"
+            cp "$binary" "temp-${platform}/helm-safe"
+            tar czf "dist/helm-safe-${platform}.tar.gz" -C "temp-${platform}" "helm-safe"
+            rm -rf "temp-${platform}"
           fi
         done
         echo "Generated archives:"
         ls -la dist/
+        echo "Verifying archive contents:"
+        for archive in dist/*.tar.gz; do
+          echo "--- Contents of $archive ---"
+          tar -tzf "$archive"
+        done
     
     - name: Create Release
       uses: softprops/action-gh-release@v2
