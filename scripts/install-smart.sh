@@ -88,15 +88,20 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
     cd "${HELM_PLUGIN_DIR}"
     
     if tar -xzf "$TMP_TAR" -C bin/ 2>/dev/null; then
-        # Find the extracted binary and rename it to helm-safe
-        EXTRACTED_BINARY=$(find bin/ -name "helm-safe-*" -type f | head -1)
-        if [ -n "$EXTRACTED_BINARY" ] && [ -f "$EXTRACTED_BINARY" ]; then
-            mv "$EXTRACTED_BINARY" "$BINARY_PATH"
+        # Check if the binary was extracted to the expected path
+        if [ -f "$BINARY_PATH" ]; then
             chmod +x "$BINARY_PATH"
             rm -f "$TMP_TAR"
             
             # Verify the binary works and has reasonable size
-            BINARY_SIZE=$(stat -c%s "$BINARY_PATH" 2>/dev/null || echo "0")
+            case $(uname -s) in
+                Darwin)
+                    BINARY_SIZE=$(stat -f %z "$BINARY_PATH" 2>/dev/null || echo "0")
+                    ;;
+                *)
+                    BINARY_SIZE=$(stat -c%s "$BINARY_PATH" 2>/dev/null || echo "0")
+                    ;;
+            esac
             if [ "$BINARY_SIZE" -lt 1000000 ]; then  # Less than 1MB is suspicious for a Go binary
                 echo -e "${YELLOW}Warning: Binary size ($BINARY_SIZE bytes) seems too small. May be corrupted.${NC}"
                 rm -f "$BINARY_PATH"
