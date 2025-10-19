@@ -20,12 +20,15 @@ helm-safe acts as a simple, interactive wrapper around modifying Helm commands t
 ### Quick Install (Recommended)
 
 ```bash
-# One-line installation
+# One-line installation with comprehensive system detection
 curl -sSL https://raw.githubusercontent.com/bjrooney/helm-safe/main/install.sh | bash
-
-# Or simple version
-curl -sSL https://raw.githubusercontent.com/bjrooney/helm-safe/main/quick-install.sh | bash
 ```
+
+The installer features:
+- 🔍 **Advanced hardware detection** (Raspberry Pi, Apple Silicon, mixed architectures)
+- 🎯 **Intelligent binary selection** (handles ARM variants automatically)
+- 🛠️ **Automatic fallback** to source compilation when needed
+- 📊 **Detailed system information** and installation progress
 
 ### Via Helm Plugin Manager
 
