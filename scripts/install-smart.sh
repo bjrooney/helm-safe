@@ -92,7 +92,7 @@ TMP_TAR="/tmp/helm-safe-${PLATFORM}.tar.gz"
 rm -f "$TMP_TAR"
 
 if command -v curl >/dev/null 2>&1; then
-    if curl -sL "$RELEASE_URL" -o "$TMP_TAR" && [ -s "$TMP_TAR" ]; then
+    if curl -sL "$RELEASE_URL" -o "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
         DOWNLOAD_SUCCESS=true
     fi
 elif command -v wget >/dev/null 2>&1; then
