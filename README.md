@@ -1,3 +1,4 @@
+:wq
 # helm-safe
 
 A Helm plugin that provides an interactive safety net for modifying Helm commands.
