@@ -16,9 +16,10 @@ echo -e "${GREEN}Installing helm-safe plugin...${NC}"
 # Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
+GOARM=""
 
 # Special handling for Raspberry Pi and mixed architecture systems
-if [ "$ARCH" = "aarch64" ] && [ -f /proc/version ]; then
+if [ "$OS" = "linux" ] && [ "$ARCH" = "aarch64" ] && [ -f /proc/version ]; then
     # Check if this is actually a 32-bit userland on 64-bit hardware
     if grep -qi "armhf\|armv7" /proc/version || [ -d /lib/arm-linux-gnueabihf ]; then
         echo -e "${YELLOW}Detected 64-bit ARM CPU with 32-bit userland (common on Raspberry Pi)${NC}"
@@ -35,14 +36,19 @@ case $ARCH in
         ;;
     armv7l|armv7*)
         ARCH="arm"
+        GOARM="7"
         echo -e "${YELLOW}Note: Detected 32-bit ARM (armv7). If this fails, you may need to build from source.${NC}"
         ;;
     armv6l|armv6*)
         ARCH="arm"
+        GOARM="6"
         echo -e "${YELLOW}Note: Detected 32-bit ARM (armv6). If this fails, you may need to build from source.${NC}"
         ;;
     arm)
-        # Already set correctly
+        # Already set correctly, default to 7 if GOARM is not set
+        if [ -z "$GOARM" ]; then
+            GOARM="7"
+        fi
         ;;
     *)
         echo -e "${RED}Unsupported architecture: $ARCH${NC}"
@@ -51,7 +57,16 @@ case $ARCH in
         ;;
 esac
 
-echo -e "${YELLOW}Target platform: ${OS}-${ARCH}${NC}"
+# Construct platform string
+PLATFORM="${OS}-${ARCH}"
+if [ "$ARCH" = "arm" ] && [ -n "$GOARM" ]; then
+    # Use armv6 build for GOARM=6
+    if [ "$GOARM" = "6" ]; then
+        PLATFORM="${OS}-armv6"
+    fi
+fi
+
+echo -e "${YELLOW}Target platform: ${PLATFORM}${NC}"
 
 # Create bin directory
 mkdir -p "${HELM_PLUGIN_DIR}/bin"
@@ -67,18 +82,21 @@ fi
 # Strategy 1: Try to download pre-built binary from GitHub releases (tar.gz format)
 echo -e "${YELLOW}Attempting to download pre-built binary...${NC}"
 
-RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}.tar.gz"
+RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${PLATFORM}.tar.gz"
 echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
 
 DOWNLOAD_SUCCESS=false
-TMP_TAR="/tmp/helm-safe-${OS}-${ARCH}.tar.gz"
+TMP_TAR="/tmp/helm-safe-${PLATFORM}.tar.gz"
+
+# Clean up previous temp file if it exists
+rm -f "$TMP_TAR"
 
 if command -v curl >/dev/null 2>&1; then
-    if curl -sL "$RELEASE_URL" -o "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
+    if curl -sL "$RELEASE_URL" -o "$TMP_TAR" && [ -s "$TMP_TAR" ]; then
         DOWNLOAD_SUCCESS=true
     fi
 elif command -v wget >/dev/null 2>&1; then
-    if wget -q "$RELEASE_URL" -O "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
+    if wget -q "$RELEASE_URL" -O "$TMP_TAR" && [ -s "$TMP_TAR" ]; then
         DOWNLOAD_SUCCESS=true
     fi
 fi
@@ -87,11 +105,10 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
     echo -e "${YELLOW}Extracting binary...${NC}"
     cd "${HELM_PLUGIN_DIR}"
     
-    if tar -xzf "$TMP_TAR" -C bin/ 2>/dev/null; then
+    if tar -xzf "$TMP_TAR" -C bin/; then
         # Check if the binary was extracted to the expected path
         if [ -f "$BINARY_PATH" ]; then
             chmod +x "$BINARY_PATH"
-            rm -f "$TMP_TAR"
             
             # Verify the binary works and has reasonable size
             case $(uname -s) in
@@ -102,11 +119,13 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
                     BINARY_SIZE=$(stat -c%s "$BINARY_PATH" 2>/dev/null || echo "0")
                     ;;
             esac
+
             if [ "$BINARY_SIZE" -lt 1000000 ]; then  # Less than 1MB is suspicious for a Go binary
                 echo -e "${YELLOW}Warning: Binary size ($BINARY_SIZE bytes) seems too small. May be corrupted.${NC}"
                 rm -f "$BINARY_PATH"
             elif "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
                 echo -e "${GREEN}Successfully downloaded and installed binary: $BINARY_PATH${NC}"
+                rm -f "$TMP_TAR"
                 exit 0
             else
                 echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible (exec format error)${NC}"
@@ -121,45 +140,10 @@ if [ "$DOWNLOAD_SUCCESS" = true ]; then
     echo -e "${YELLOW}Failed to extract or verify binary from tar.gz${NC}"
 fi
 
-# Strategy 2: Try direct binary download (fallback for different release formats)
-echo -e "${YELLOW}Trying direct binary download...${NC}"
-DIRECT_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}"
-if [ "$OS" = "windows" ]; then
-    DIRECT_URL="${DIRECT_URL}.exe"
-fi
-
-if command -v curl >/dev/null 2>&1; then
-    if curl -sL "$DIRECT_URL" -o "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
-        chmod +x "$BINARY_PATH"
-        # Verify the binary works
-        if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
-            echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
-            exit 0
-        else
-            echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
-            rm -f "$BINARY_PATH"
-        fi
-    fi
-elif command -v wget >/dev/null 2>&1; then
-    if wget -q "$DIRECT_URL" -O "$BINARY_PATH" 2>/dev/null && [ -s "$BINARY_PATH" ]; then
-        chmod +x "$BINARY_PATH"
-        # Verify the binary works
-        if "$BINARY_PATH" --version >/dev/null 2>&1 || "$BINARY_PATH" --help >/dev/null 2>&1; then
-            echo -e "${GREEN}Downloaded binary: $BINARY_PATH${NC}"
-            exit 0
-        else
-            echo -e "${YELLOW}Downloaded binary appears corrupted or incompatible${NC}"
-            rm -f "$BINARY_PATH"
-        fi
-    fi
-fi
-
-rm -f "$BINARY_PATH" 2>/dev/null
-
-# Strategy 3: Build from source (last resort)
+# Strategy 2: Build from source (last resort)
 if [ -f "${HELM_PLUGIN_DIR}/go.mod" ]; then
     if command -v go >/dev/null 2>&1; then
-        echo -e "${YELLOW}Pre-built binaries not available. Building from source...${NC}"
+        echo -e "${YELLOW}Pre-built binaries not available or incompatible. Building from source...${NC}"
         
         cd "${HELM_PLUGIN_DIR}"
         
@@ -179,24 +163,7 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ]; then
         echo -e "${YELLOW}Pre-built binaries not available and Go not found.${NC}"
         echo -e "${RED}Installation failed${NC}"
         echo ""
-        echo -e "${YELLOW}Please install Go and try again:${NC}"
-        
-        case $OS in
-            darwin)
-                echo -e "${YELLOW}  brew install go${NC}"
-                ;;
-            linux)
-                echo -e "${YELLOW}  Ubuntu/Debian: sudo apt update && sudo apt install golang-go${NC}"
-                echo -e "${YELLOW}  CentOS/RHEL: sudo yum install golang${NC}"
-                echo -e "${YELLOW}  Arch: sudo pacman -S go${NC}"
-                ;;
-            *)
-                echo -e "${YELLOW}  Visit: https://golang.org/dl/${NC}"
-                ;;
-        esac
-        
-        echo ""
-        echo -e "${YELLOW}Or check if pre-built binaries are available at:${NC}"
+        echo -e "${YELLOW}Please install Go and try again, or download a binary manually from:${NC}"
         echo -e "${YELLOW}  https://github.com/bjrooney/helm-safe/releases${NC}"
         exit 1
     fi
