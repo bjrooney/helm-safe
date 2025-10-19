@@ -1,5 +1,5 @@
 name: safe
-version: 0.1.0
+version: 0.1.15
 usage: Interactive safety net for modifying Helm commands
 description: |
   helm-safe provides an interactive safety net for modifying Helm commands.
