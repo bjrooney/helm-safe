@@ -27,7 +27,12 @@ jobs:
         echo "Updated plugin.yaml to version: $VERSION"
         
     - name: Build for all platforms
-      run: make cross-build
+      run: |
+        echo "=== Build Environment ==="
+        go version
+        go env GOOS GOARCH
+        echo "========================="
+        make cross-build
     
     - name: Package binaries
       run: |
