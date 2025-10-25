@@ -8,6 +8,65 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Reusable function to download and extract binary
+# Usage: download_and_extract_binary <url> <temp_file> <description>
+# Returns: 0 on success, 1 on failure
+download_and_extract_binary() {
+    local url="$1"
+    local temp_file="$2" 
+    local description="$3"
+    
+    echo -e "${YELLOW}Downloading ${description}: ${url}${NC}"
+    
+    # Download the file
+    local download_success=false
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sL "$url" -o "$temp_file" 2>/dev/null && [ -s "$temp_file" ]; then
+            download_success=true
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q "$url" -O "$temp_file" 2>/dev/null && [ -s "$temp_file" ]; then
+            download_success=true
+        fi
+    fi
+    
+    if [ "$download_success" = false ]; then
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+    
+    # Extract the binary
+    echo -e "${YELLOW}Extracting ${description}...${NC}"
+    cd "${HELM_PLUGIN_DIR}"
+    
+    if tar -xzf "$temp_file" -C bin/ 2>/dev/null; then
+        local extracted_binary="${HELM_PLUGIN_DIR}/bin/helm-safe"
+        if [ -f "$extracted_binary" ]; then
+            echo -e "${GREEN}Successfully downloaded and extracted ${description}: $extracted_binary${NC}"
+            chmod +x "$extracted_binary"
+            rm -f "$temp_file"
+            
+            # Validate binary size (should be > 1MB for Go programs)
+            local binary_size=$(stat -c%s "$extracted_binary" 2>/dev/null || echo "0")
+            if [ "$binary_size" -lt 1000000 ]; then
+                echo -e "${YELLOW}Warning: Binary seems small ($binary_size bytes)${NC}"
+                echo -e "${YELLOW}This might indicate a download issue${NC}"
+                return 1
+            fi
+            
+            return 0
+        else
+            echo -e "${RED}Failed to extract binary from ${description} archive${NC}"
+            rm -f "$temp_file"
+            return 1
+        fi
+    else
+        echo -e "${RED}Failed to extract ${description} tar.gz archive${NC}"
+        rm -f "$temp_file"
+        return 1
+    fi
+}
+
 echo -e "${GREEN}Installing helm-safe plugin...${NC}"
 
 # Debug: Show detection info
@@ -111,49 +170,10 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
     
     # Try to download from GitHub releases (tar.gz format for better compatibility)
     RELEASE_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-${ARCH}.tar.gz"
-    echo -e "${YELLOW}Downloading: ${RELEASE_URL}${NC}"
-    
-    DOWNLOAD_SUCCESS=false
     TMP_TAR="/tmp/helm-safe-${OS}-${ARCH}.tar.gz"
     
-    if command -v curl >/dev/null 2>&1; then
-        if curl -sL "$RELEASE_URL" -o "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
-            DOWNLOAD_SUCCESS=true
-        fi
-    elif command -v wget >/dev/null 2>&1; then
-        if wget -q "$RELEASE_URL" -O "$TMP_TAR" 2>/dev/null && [ -s "$TMP_TAR" ]; then
-            DOWNLOAD_SUCCESS=true
-        fi
-    fi
-    
-    if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        echo -e "${YELLOW}Extracting binary...${NC}"
-        cd "${HELM_PLUGIN_DIR}"
-        
-        if tar -xzf "$TMP_TAR" -C bin/ 2>/dev/null; then
-            # Check if binary was extracted correctly
-            EXTRACTED_BINARY="${HELM_PLUGIN_DIR}/bin/helm-safe"
-            if [ -f "$EXTRACTED_BINARY" ]; then
-                echo -e "${GREEN}Downloaded and extracted binary: $EXTRACTED_BINARY${NC}"
-                chmod +x "$EXTRACTED_BINARY"
-                rm -f "$TMP_TAR"
-                
-                # Validate binary size (should be > 1MB for Go programs)
-                BINARY_SIZE=$(stat -c%s "$EXTRACTED_BINARY" 2>/dev/null || echo "0")
-                if [ "$BINARY_SIZE" -lt 1000000 ]; then
-                    echo -e "${YELLOW}Warning: Binary seems small ($BINARY_SIZE bytes)${NC}"
-                    echo -e "${YELLOW}This might indicate a download issue${NC}"
-                fi
-                
-                exit 0
-            else
-                echo -e "${RED}Failed to extract binary from archive${NC}"
-                rm -f "$TMP_TAR"
-            fi
-        else
-            echo -e "${RED}Failed to extract tar.gz archive${NC}"
-            rm -f "$TMP_TAR"
-        fi
+    if download_and_extract_binary "$RELEASE_URL" "$TMP_TAR" "primary binary"; then
+        exit 0
     fi
     
     # Fallback: try direct binary download (for older releases)
@@ -191,29 +211,8 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
             FALLBACK_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-armv6.tar.gz"
             TMP_TAR_FALLBACK="/tmp/helm-safe-${OS}-armv6.tar.gz"
             
-            FALLBACK_SUCCESS=false
-            if command -v curl >/dev/null 2>&1; then
-                if curl -sL "$FALLBACK_URL" -o "$TMP_TAR_FALLBACK" 2>/dev/null && [ -s "$TMP_TAR_FALLBACK" ]; then
-                    FALLBACK_SUCCESS=true
-                fi
-            elif command -v wget >/dev/null 2>&1; then
-                if wget -q "$FALLBACK_URL" -O "$TMP_TAR_FALLBACK" 2>/dev/null && [ -s "$TMP_TAR_FALLBACK" ]; then
-                    FALLBACK_SUCCESS=true
-                fi
-            fi
-            
-            if [ "$FALLBACK_SUCCESS" = true ]; then
-                echo -e "${YELLOW}Extracting ARM fallback binary...${NC}"
-                if tar -xzf "$TMP_TAR_FALLBACK" -C bin/ 2>/dev/null; then
-                    EXTRACTED_BINARY="${HELM_PLUGIN_DIR}/bin/helm-safe"
-                    if [ -f "$EXTRACTED_BINARY" ]; then
-                        echo -e "${GREEN}Successfully installed ARM fallback binary: $EXTRACTED_BINARY${NC}"
-                        chmod +x "$EXTRACTED_BINARY"
-                        rm -f "$TMP_TAR_FALLBACK"
-                        exit 0
-                    fi
-                fi
-                rm -f "$TMP_TAR_FALLBACK"
+            if download_and_extract_binary "$FALLBACK_URL" "$TMP_TAR_FALLBACK" "ARM fallback binary"; then
+                exit 0
             fi
             
             echo -e "${YELLOW}For Raspberry Pi and ARM systems:${NC}"
