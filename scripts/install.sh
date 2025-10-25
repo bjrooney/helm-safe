@@ -151,11 +151,22 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && command -v go >/dev/null 2>&1; then
     
     cd "${HELM_PLUGIN_DIR}"
     
+    # Show Go build environment for debugging
+    echo -e "${YELLOW}=== Go Build Environment Debug ===${NC}"
+    echo -e "${YELLOW}Go version: $(go version)${NC}"
+    echo -e "${YELLOW}GOOS: $(go env GOOS)${NC}"
+    echo -e "${YELLOW}GOARCH: $(go env GOARCH)${NC}"
+    echo -e "${YELLOW}GOARM: $(go env GOARM)${NC}"
+    echo -e "${YELLOW}CGO_ENABLED: $(go env CGO_ENABLED)${NC}"
+    echo -e "${YELLOW}Target binary: bin/${BINARY_NAME}${NC}"
+    echo -e "${YELLOW}=================================${NC}"
+    
     # Set build variables
     VERSION=$(cat VERSION 2>/dev/null || echo "dev")
     LDFLAGS="-ldflags -X=github.com/bjrooney/helm-safe/pkg/safe.Version=${VERSION}"
     
-    # Build binary
+    # Build binary with verbose output
+    echo -e "${YELLOW}Running: go build $LDFLAGS -o bin/${BINARY_NAME} ./cmd/helm-safe${NC}"
     go build $LDFLAGS -o "bin/${BINARY_NAME}" ./cmd/helm-safe
     
     echo -e "${GREEN}Built binary: bin/${BINARY_NAME}${NC}"
@@ -205,19 +216,33 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
         echo -e "${YELLOW}This is normal for new releases or uncommon architectures${NC}"
         rm -f "$BINARY_PATH" 2>/dev/null
         
-        # ARM fallback: try alternative ARM variant
+        # ARM fallback: try multiple ARM variants for Raspberry Pi compatibility
         if [ "$ARCH" = "arm" ]; then
-            echo -e "${YELLOW}Trying ARM fallback: attempting armv6 variant...${NC}"
-            FALLBACK_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-armv6.tar.gz"
-            TMP_TAR_FALLBACK="/tmp/helm-safe-${OS}-armv6.tar.gz"
+            echo -e "${YELLOW}ARM binary download failed. Trying ARM fallback variants...${NC}"
             
-            if download_and_extract_binary "$FALLBACK_URL" "$TMP_TAR_FALLBACK" "ARM fallback binary"; then
+            # Try GOARM=6 first (compatible with more Pi models including older ones)
+            echo -e "${YELLOW}Trying ARM fallback: GOARM=6 (armv6) variant...${NC}"
+            FALLBACK_URL_V6="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-armv6.tar.gz"
+            TMP_TAR_V6="/tmp/helm-safe-${OS}-armv6.tar.gz"
+            
+            if download_and_extract_binary "$FALLBACK_URL_V6" "$TMP_TAR_V6" "ARM GOARM=6 binary"; then
                 exit 0
             fi
             
+            # If GOARM=6 fails, try the main ARM binary (GOARM=7)
+            echo -e "${YELLOW}Trying ARM fallback: main ARM (GOARM=7) variant...${NC}"
+            FALLBACK_URL_V7="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-arm.tar.gz"
+            TMP_TAR_V7="/tmp/helm-safe-${OS}-arm.tar.gz"
+            
+            if download_and_extract_binary "$FALLBACK_URL_V7" "$TMP_TAR_V7" "ARM GOARM=7 binary"; then
+                exit 0
+            fi
+            
+            echo -e "${YELLOW}All ARM binary variants failed. Falling back to source compilation.${NC}"
             echo -e "${YELLOW}For Raspberry Pi and ARM systems:${NC}"
-            echo -e "${YELLOW}  - Try installing v0.1.6+ which includes ARM support${NC}"
-            echo -e "${YELLOW}  - Or install Go to build from source${NC}"
+            echo -e "${YELLOW}  - GOARM=6 is recommended for Pi 1/Zero, Pi 2+${NC}"
+            echo -e "${YELLOW}  - GOARM=7 is for newer ARM processors${NC}"
+            echo -e "${YELLOW}  - Source compilation will detect optimal settings${NC}"
         fi
         
         echo -e "${RED}Go is required to build helm-safe from source${NC}"
