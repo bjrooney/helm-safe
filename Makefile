@@ -38,14 +38,26 @@ clean:
 # Cross-platform build for all supported platforms
 cross-build:
 	@echo "Building for all platforms..."
+	@echo "Go version: $(shell go version)"
+	@echo "Build environment: GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH)"
 	@mkdir -p $(BUILD_DIR)
+	@echo "Building linux-amd64..."
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/helm-safe
+	@echo "Building linux-arm64..."
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/helm-safe
+	@echo "Building linux-arm (GOARM=7)..."
 	GOOS=linux GOARCH=arm GOARM=7 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm ./cmd/helm-safe
+	@echo "Building linux-arm (GOARM=6)..."
+	GOOS=linux GOARCH=arm GOARM=6 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-armv6 ./cmd/helm-safe
+	@echo "Building darwin-amd64..."
 	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/helm-safe
+	@echo "Building darwin-arm64..."
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/helm-safe
+	@echo "Building windows-amd64..."
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/helm-safe
 	@echo "Cross-compilation complete!"
+	@echo "Built binaries:"
+	@ls -la $(BUILD_DIR)/
 
 # Install plugin locally for development
 dev-install: build

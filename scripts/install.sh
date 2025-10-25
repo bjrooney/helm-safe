@@ -10,6 +10,19 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Installing helm-safe plugin...${NC}"
 
+# Debug: Show detection info
+echo -e "${YELLOW}=== Architecture Detection Debug ===${NC}"
+echo -e "${YELLOW}uname -s: $(uname -s)${NC}"
+echo -e "${YELLOW}uname -m: $(uname -m)${NC}"
+echo -e "${YELLOW}uname -a: $(uname -a)${NC}"
+if [ -f /proc/version ]; then
+    echo -e "${YELLOW}/proc/version: $(head -1 /proc/version)${NC}"
+fi
+if [ -f /proc/cpuinfo ]; then
+    echo -e "${YELLOW}CPU info: $(grep -m1 'model name\|Hardware\|Revision' /proc/cpuinfo)${NC}"
+fi
+echo -e "${YELLOW}=================================${NC}"
+
 # Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -17,7 +30,18 @@ ARCH=$(uname -m)
 # Enhanced ARM architecture detection for Raspberry Pi and mixed systems
 case $ARCH in
     x86_64)
-        ARCH="amd64"
+        # Check if this is actually ARM hardware being emulated
+        if grep -qi "raspberry pi\|bcm283\|bcm2" /proc/cpuinfo 2>/dev/null; then
+            echo -e "${YELLOW}Detected: Raspberry Pi hardware with x86_64 emulation layer${NC}"
+            echo -e "${YELLOW}Forcing ARM architecture for native compatibility${NC}"
+            ARCH="arm"
+        elif grep -qi "armhf\|armv7" /proc/version 2>/dev/null || [ -d /lib/arm-linux-gnueabihf ]; then
+            echo -e "${YELLOW}Detected: ARM userland on x86_64 system (likely container/emulation)${NC}"
+            echo -e "${YELLOW}Using ARM binary for compatibility${NC}"
+            ARCH="arm"
+        else
+            ARCH="amd64"
+        fi
         ;;
     arm64|aarch64)
         # Check for mixed architecture (64-bit CPU, 32-bit userland)
@@ -161,8 +185,37 @@ if [ -f "${HELM_PLUGIN_DIR}/go.mod" ] && ! command -v go >/dev/null 2>&1; then
         echo -e "${YELLOW}This is normal for new releases or uncommon architectures${NC}"
         rm -f "$BINARY_PATH" 2>/dev/null
         
-        # Provide helpful message for ARM systems
+        # ARM fallback: try alternative ARM variant
         if [ "$ARCH" = "arm" ]; then
+            echo -e "${YELLOW}Trying ARM fallback: attempting armv6 variant...${NC}"
+            FALLBACK_URL="https://github.com/bjrooney/helm-safe/releases/latest/download/helm-safe-${OS}-armv6.tar.gz"
+            TMP_TAR_FALLBACK="/tmp/helm-safe-${OS}-armv6.tar.gz"
+            
+            FALLBACK_SUCCESS=false
+            if command -v curl >/dev/null 2>&1; then
+                if curl -sL "$FALLBACK_URL" -o "$TMP_TAR_FALLBACK" 2>/dev/null && [ -s "$TMP_TAR_FALLBACK" ]; then
+                    FALLBACK_SUCCESS=true
+                fi
+            elif command -v wget >/dev/null 2>&1; then
+                if wget -q "$FALLBACK_URL" -O "$TMP_TAR_FALLBACK" 2>/dev/null && [ -s "$TMP_TAR_FALLBACK" ]; then
+                    FALLBACK_SUCCESS=true
+                fi
+            fi
+            
+            if [ "$FALLBACK_SUCCESS" = true ]; then
+                echo -e "${YELLOW}Extracting ARM fallback binary...${NC}"
+                if tar -xzf "$TMP_TAR_FALLBACK" -C bin/ 2>/dev/null; then
+                    EXTRACTED_BINARY="${HELM_PLUGIN_DIR}/bin/helm-safe"
+                    if [ -f "$EXTRACTED_BINARY" ]; then
+                        echo -e "${GREEN}Successfully installed ARM fallback binary: $EXTRACTED_BINARY${NC}"
+                        chmod +x "$EXTRACTED_BINARY"
+                        rm -f "$TMP_TAR_FALLBACK"
+                        exit 0
+                    fi
+                fi
+                rm -f "$TMP_TAR_FALLBACK"
+            fi
+            
             echo -e "${YELLOW}For Raspberry Pi and ARM systems:${NC}"
             echo -e "${YELLOW}  - Try installing v0.1.6+ which includes ARM support${NC}"
             echo -e "${YELLOW}  - Or install Go to build from source${NC}"
