@@ -20,11 +20,14 @@ jobs:
       with:
         go-version: '1.21'
     
-    - name: Update plugin.yaml version
+    - name: Verify and sync versions
       run: |
-        VERSION=$(cat VERSION)
-        sed -i "s/^version: .*/version: $VERSION/" plugin.yaml
-        echo "Updated plugin.yaml to version: $VERSION"
+        echo "Checking version consistency..."
+        make check-version || {
+          echo "Versions are out of sync. Syncing..."
+          make sync-version
+          echo "Versions synchronized."
+        }
         
     - name: Build for all platforms
       run: |
