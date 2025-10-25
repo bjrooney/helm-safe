@@ -1,4 +1,4 @@
-.PHONY: build test clean install version dev-install cross-build
+.PHONY: build test clean install version dev-install cross-build sync-version check-version bump-patch
 
 BINARY_NAME=helm-safe
 BUILD_DIR=bin
@@ -16,7 +16,29 @@ build:
 version:
 	@echo "Current version: $(VERSION)"
 
-# Increment patch version
+# Sync plugin.yaml version with VERSION file
+sync-version:
+	@echo "Syncing plugin.yaml version with VERSION file..."
+	@VERSION_NUM=$$(cat $(VERSION_FILE) 2>/dev/null || echo "dev"); \
+	sed -i.bak "s/^version: .*/version: $$VERSION_NUM/" plugin.yaml; \
+	rm -f plugin.yaml.bak; \
+	echo "Updated plugin.yaml to version: $$VERSION_NUM"
+
+# Verify versions are in sync
+check-version:
+	@VERSION_FILE_NUM=$$(cat $(VERSION_FILE) 2>/dev/null || echo "unknown"); \
+	PLUGIN_VERSION=$$(grep "^version:" plugin.yaml | awk '{print $$2}' | tr -d '"' || echo "unknown"); \
+	if [ "$$VERSION_FILE_NUM" != "$$PLUGIN_VERSION" ]; then \
+		echo "❌ Version mismatch:"; \
+		echo "  VERSION file: $$VERSION_FILE_NUM"; \
+		echo "  plugin.yaml:  $$PLUGIN_VERSION"; \
+		echo "Run 'make sync-version' to fix this."; \
+		exit 1; \
+	else \
+		echo "✅ Versions are in sync: $$VERSION_FILE_NUM"; \
+	fi
+
+# Increment patch version and sync
 bump-patch:
 	@current=$$(cat $(VERSION_FILE) 2>/dev/null || echo "0.0.0"); \
 	major=$$(echo $$current | cut -d. -f1); \
@@ -25,7 +47,8 @@ bump-patch:
 	new_patch=$$((patch + 1)); \
 	new_version="$$major.$$minor.$$new_patch"; \
 	echo "$$new_version" > $(VERSION_FILE); \
-	echo "Version bumped from $$current to $$new_version"
+	echo "Version bumped from $$current to $$new_version"; \
+	$(MAKE) sync-version
 
 test:
 	@echo "Running tests..."
@@ -36,7 +59,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 # Cross-platform build for all supported platforms
-cross-build:
+cross-build: check-version
 	@echo "Building for all platforms..."
 	@echo "Go version: $(shell go version)"
 	@echo "Build environment: GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH)"
@@ -101,3 +124,22 @@ lint:
 	else \
 		echo "golangci-lint not found, skipping linting"; \
 	fi
+
+# Show available targets
+help:
+	@echo "Available targets:"
+	@echo "  build          - Build binary for current platform"
+	@echo "  cross-build    - Build for all supported platforms"
+	@echo "  test           - Run tests"
+	@echo "  clean          - Clean build artifacts"
+	@echo ""
+	@echo "Version management:"
+	@echo "  version        - Show current version"
+	@echo "  check-version  - Verify VERSION and plugin.yaml are in sync"
+	@echo "  sync-version   - Sync plugin.yaml version with VERSION file"
+	@echo "  bump-patch     - Increment patch version and sync"
+	@echo ""
+	@echo "Development:"
+	@echo "  dev-install    - Install plugin locally for development"
+	@echo "  fmt            - Format code"
+	@echo "  lint           - Lint code (requires golangci-lint)"
