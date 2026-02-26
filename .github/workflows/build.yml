@@ -46,7 +46,7 @@ jobs:
       run: make cross-build
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: helm-safe-binaries
         path: bin/helm-safe-*
